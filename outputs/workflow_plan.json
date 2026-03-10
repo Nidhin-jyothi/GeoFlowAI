@@ -1,0 +1,62 @@
+[
+  {
+    "step_id": "step_01",
+    "algorithm": "native:extractbyattribute",
+    "parameters": {
+      "INPUT": "data/gadm41_IND_1.shp",
+      "FIELD": "NAME_1",
+      "OPERATOR": 0,
+      "VALUE": "Kerala",
+      "OUTPUT": "outputs/kerala_boundary.shp"
+    },
+    "input_files": [
+      "data/gadm41_IND_1.shp"
+    ],
+    "output_file": "outputs/kerala_boundary.shp",
+    "script_filename": "step_01_extract_kerala_boundary.py"
+  },
+  {
+    "step_id": "step_02",
+    "algorithm": "gdal:cliprasterbymasklayer",
+    "parameters": {
+      "INPUT": "data/kerala_dem.tif",
+      "MASK": "outputs/kerala_boundary.shp",
+      "SOURCE_CRS": "EPSG:4326",
+      "TARGET_CRS": "EPSG:4326",
+      "TARGET_EXTENT": null,
+      "NODATA": -9999,
+      "ALPHA_BAND": false,
+      "CROP_TO_CUTLINE": true,
+      "KEEP_RESOLUTION": false,
+      "SET_RESOLUTION": false,
+      "X_RESOLUTION": null,
+      "Y_RESOLUTION": null,
+      "MULTITHREADING": false,
+      "OPTIONS": "",
+      "OUTPUT": "outputs/kerala_clipped_dem.tif"
+    },
+    "input_files": [
+      "data/kerala_dem.tif"
+    ],
+    "output_file": "outputs/kerala_clipped_dem.tif",
+    "script_filename": "step_02_clip_dem.py"
+  },
+  {
+    "step_id": "step_03",
+    "algorithm": "gdal:slope",
+    "parameters": {
+      "INPUT": "outputs/kerala_clipped_dem.tif",
+      "BAND": 1,
+      "SCALE": 1.0,
+      "AS_PERCENT": false,
+      "COMPUTE_EDGES": false,
+      "ZEVENBERGEN": false,
+      "OPTIONS": "",
+      "EXTRA": "",
+      "OUTPUT": "outputs/kerala_slope.tif"
+    },
+    "input_files": [],
+    "output_file": "outputs/kerala_slope.tif",
+    "script_filename": "step_03_calculate_slope.py"
+  }
+]

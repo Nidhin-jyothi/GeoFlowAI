@@ -1,0 +1,62 @@
+[
+  {
+    "name": "EXTENT",
+    "description": "Minimum extent to render",
+    "type_class": "QgsProcessingParameterExtent",
+    "is_optional": false,
+    "is_destination": false
+  },
+  {
+    "name": "EXTENT_BUFFER",
+    "description": "Buffer around tiles in map units",
+    "type_class": "QgsProcessingParameterNumber",
+    "is_optional": false,
+    "is_destination": false,
+    "default": 0
+  },
+  {
+    "name": "TILE_SIZE",
+    "description": "Tile size",
+    "type_class": "QgsProcessingParameterNumber",
+    "is_optional": false,
+    "is_destination": false,
+    "default": 1024
+  },
+  {
+    "name": "MAP_UNITS_PER_PIXEL",
+    "description": "Map units per pixel",
+    "type_class": "QgsProcessingParameterNumber",
+    "is_optional": false,
+    "is_destination": false,
+    "default": 100
+  },
+  {
+    "name": "MAKE_BACKGROUND_TRANSPARENT",
+    "description": "Make background transparent",
+    "type_class": "QgsProcessingParameterBoolean",
+    "is_optional": false,
+    "is_destination": false,
+    "default": false
+  },
+  {
+    "name": "MAP_THEME",
+    "description": "Map theme to render",
+    "type_class": "QgsProcessingParameterMapTheme",
+    "is_optional": false,
+    "is_destination": false
+  },
+  {
+    "name": "LAYERS",
+    "description": "Layers to render",
+    "type_class": "QgsProcessingParameterMultipleLayers",
+    "is_optional": false,
+    "is_destination": false
+  },
+  {
+    "name": "OUTPUT",
+    "description": "Output layer",
+    "type_class": "QgsProcessingParameterRasterDestination",
+    "is_optional": false,
+    "is_destination": true
+  }
+]

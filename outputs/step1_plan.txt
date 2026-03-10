@@ -1,0 +1,18 @@
+1.  **Extract Kerala State Boundary:**
+    *   **Algorithm ID:** `native:extractbyattribute`
+    *   **Input Layer:** `data/gadm41_IND_1.shp` (India Admin Level 1)
+    *   **Field:** `NAME_1` (assuming this field contains state names)
+    *   **Operator:** `=`
+    *   **Value:** `Kerala`
+    *   **Output:** `kerala_boundary.shp` (Temporary vector layer)
+
+2.  **Clip DEM using Kerala Boundary:**
+    *   **Algorithm ID:** `gdal:cliprasterbymasklayer`
+    *   **Input Layer:** `data/kerala_dem.tif` (Kerala DEM)
+    *   **Mask Layer:** Output from Step 1 (`kerala_boundary.shp`)
+    *   **Output:** `kerala_clipped_dem.tif` (Temporary raster layer)
+
+3.  **Calculate Slope:**
+    *   **Algorithm ID:** `gdal:slope`
+    *   **Input Layer:** Output from Step 2 (`kerala_clipped_dem.tif`)
+    *   **Output:** `kerala_slope.tif` (Final raster layer)

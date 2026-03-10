@@ -1,0 +1,35 @@
+{
+  "data_root": "data",
+  "layers": [
+    {
+      "name": "India Admin Level 0",
+      "path": "gadm41_IND_0.shp",
+      "type": "vector",
+      "description": "Country-level administrative boundaries of India"
+    },
+    {
+      "name": "India Admin Level 1",
+      "path": "gadm41_IND_1.shp",
+      "type": "vector",
+      "description": "State-level administrative boundaries of India"
+    },
+    {
+      "name": "India Admin Level 2",
+      "path": "gadm41_IND_2.shp",
+      "type": "vector",
+      "description": "District-level administrative boundaries of India"
+    },
+    {
+      "name": "India Admin Level 3",
+      "path": "gadm41_IND_3.shp",
+      "type": "vector",
+      "description": "Sub-district (taluk) level administrative boundaries of India"
+    },
+    {
+      "name": "Kerala DEM",
+      "path": "kerala_dem.tif",
+      "type": "raster",
+      "description": "Digital Elevation Model of Kerala region"
+    }
+  ]
+}

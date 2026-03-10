@@ -1,0 +1,2 @@
+--- ALGORITHMS AFTER MANUAL PATH SETUP ---
+ID: native:raisemessage | Name: Raise message

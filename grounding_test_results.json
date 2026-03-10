@@ -1,0 +1,58 @@
+[
+  {
+    "step_id": "step_01",
+    "algorithm_id": "gdal:fillnodata",
+    "parameters": {
+      "INPUT": "data/kerala_dem.tif",
+      "BAND": 1,
+      "IGNORE_NODATA": false,
+      "NODATA": 0,
+      "OPTIONS": "",
+      "EXTRA": ""
+    },
+    "input_files": [
+      "data/kerala_dem.tif"
+    ],
+    "output_file": "outputs/kerala_dem_filled.tif",
+    "script_filename": "step_01_fillnodata.py"
+  },
+  {
+    "step_id": "step_02",
+    "algorithm_id": "gdal:proximity",
+    "parameters": {
+      "INPUT": "outputs/kerala_dem_filled.tif",
+      "BAND": 1,
+      "VALUES": "",
+      "UNITS": 1,
+      "MAX_DISTANCE": 0,
+      "REPLACE": 0,
+      "NODATA": 0,
+      "OPTIONS": "",
+      "EXTRA": "",
+      "DATA_TYPE": 5
+    },
+    "input_files": [
+      "outputs/kerala_dem_filled.tif",
+      "data/gadm41_IND_1.shp"
+    ],
+    "output_file": "outputs/proximity_raster.tif",
+    "script_filename": "step_02_proximity.py"
+  },
+  {
+    "step_id": "step_03",
+    "algorithm_id": "native:zonalstatistics",
+    "parameters": {
+      "INPUT_RASTER": "outputs/proximity_raster.tif",
+      "RASTER_BAND": 1,
+      "INPUT_VECTOR": "data/gadm41_IND_1.shp",
+      "COLUMN_PREFIX": "_stats",
+      "STATISTICS": 2
+    },
+    "input_files": [
+      "outputs/proximity_raster.tif",
+      "data/gadm41_IND_1.shp"
+    ],
+    "output_file": "outputs/zonal_stats.shp",
+    "script_filename": "step_03_zonalstats.py"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+  "step_id": "step_03",
+  "name": "zonal_statistics_on_slope",
+  "description": "Use the previously calculated slope.tif (from Step 2) and compute zonal statistics (mean, min, max) for Kerala using the Kerala boundary shapefile. Save the result as a new shapefile kerala_slope_stats.shp.",
+  "filename": "step_03_zonal_stats.py"
+}
+
+]
