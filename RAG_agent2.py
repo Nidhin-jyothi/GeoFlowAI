@@ -47,7 +47,7 @@ for i, doc in enumerate(relevant_docs):
 '''
 
 # --- Setup Gemini 1.5 Flash ---
-genai.configure(api_key="AIzaSyDsNq_Ibw8f1tFuOMZJ6TWYE2n4rnNa_a0")  # 🔐 Replace with your API key
+genai.configure(api_key="")  # 🔐 Replace with your API key
 model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 # --- Construct Prompt ---
