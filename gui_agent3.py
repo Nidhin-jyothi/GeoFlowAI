@@ -225,6 +225,11 @@ class Agent3Window:
                                     command=self._on_resume_from)
         self.btn_resume.pack(side="right", padx=10)
 
+        self.btn_qgis = tk.Button(bottom, text="🗺  OPEN IN QGIS", font=self.font_btn,
+                                  bg=DARK_GREY, fg=CYAN, relief="flat", padx=15, pady=8,
+                                  state="disabled", command=self._open_in_qgis)
+        self.btn_qgis.pack(side="left", padx=5)
+
     def _load_workflow(self):
         path = os.path.join(config.OUTPUT_DIR, "workflow_plan.json")
         if os.path.exists(path):
@@ -384,6 +389,65 @@ class Agent3Window:
         self._is_running = False
         self._set_spinner(False)
         self.btn_run.configure(state="normal", bg=PURPLE_DIM)
+        # Enable the Open in QGIS button once pipeline is done
+        self.btn_qgis.configure(state="normal", bg=DARK_GREY)
+
+    def _collect_output_files(self):
+        """Collect all output files that exist on disk from the workflow."""
+        files = []
+        if not self.workflow_data:
+            return files
+        for step in self.workflow_data:
+            out = step.get("output_file", "")
+            if not out:
+                continue
+            abs_path = os.path.abspath(out)
+            if os.path.exists(abs_path):
+                files.append(abs_path)
+        return files
+
+    def _open_in_qgis(self):
+        """Generate a minimal .qgs project XML and open it in QGIS Desktop."""
+        import subprocess
+        import xml.etree.ElementTree as ET
+
+        files = self._collect_output_files()
+        if not files:
+            self._gui_log("No output files found to open in QGIS.", "error")
+            return
+
+        # Build a minimal QGIS project file
+        qgs_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        qgs_content += '<qgis projectname="GeoFlowAI Output" version="3.40.0">\n'
+        qgs_content += '  <projectlayers>\n'
+        for i, fpath in enumerate(files):
+            fname = os.path.splitext(os.path.basename(fpath))[0]
+            ext = os.path.splitext(fpath)[1].lower()
+            provider = "gdal" if ext in (".tif", ".tiff") else "ogr"
+            qgs_content += f'    <maplayer type="{"raster" if provider == "gdal" else "vector"}" autoRefreshEnabled="0">\n'
+            qgs_content += f'      <id>layer_{i}</id>\n'
+            qgs_content += f'      <datasource>{fpath}</datasource>\n'
+            qgs_content += f'      <layername>{fname}</layername>\n'
+            qgs_content += f'      <provider encoding="System">{provider}</provider>\n'
+            qgs_content += '    </maplayer>\n'
+        qgs_content += '  </projectlayers>\n'
+        qgs_content += '</qgis>\n'
+
+        # Save project to outputs dir
+        project_path = os.path.join(config.OUTPUT_DIR, "GeoFlowAI_output.qgs")
+        with open(project_path, "w", encoding="utf-8") as f:
+            f.write(qgs_content)
+
+        # Launch QGIS Desktop with the project
+        qgis_exe = r"C:\Program Files\QGIS 3.40.8\bin\qgis-ltr.bat"
+        if not os.path.exists(qgis_exe):
+            qgis_exe = r"C:\Program Files\QGIS 3.40.8\bin\qgis.bat"
+        try:
+            subprocess.Popen([qgis_exe, project_path], shell=True)
+            self._gui_log(f"Opening {len(files)} layer(s) in QGIS Desktop...", "success")
+        except Exception as e:
+            self._gui_log(f"Could not launch QGIS: {e}", "error")
+
 
     def _gui_log(self, msg, tag="info"):
         """Thread-safe log append."""

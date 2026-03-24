@@ -1,6 +1,7 @@
 import os
 import json
 from google import genai
+from google.genai import types
 import config
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -24,7 +25,7 @@ class Agent1Planner:
         except Exception as e:
             print(f"Planner: Could not load algorithm index ({e}).")
 
-        # Load vector store for RAG (detailed parameter info)
+        # Load vector store for RAG
         try:
             self.embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
             self.vectorstore = FAISS.load_local(
@@ -37,27 +38,34 @@ class Agent1Planner:
             self.retriever = None
 
     def generate_plan(self, query):
-        """Generates a high-level textual workflow plan."""
+        """Standard plan generation (non-streaming)."""
+        content = ""
+        def collect(c): nonlocal content; content += c
+        self.generate_plan_stream(query, collect)
+        return content
 
+    def generate_plan_stream(self, query, chunk_callback, thought_callback=None):
+        """
+        Streams the plan from Gemini 2.5 Flash with native thinking.
+        - thought_callback(text): receives the model's internal reasoning
+        - chunk_callback(text):   receives the final plan output
+        """
         context = ""
         if self.retriever:
             try:
                 docs = self.retriever.invoke(query)
                 context = "\n\n".join([d.page_content[:1500] for d in docs])
-                print(f"Agent 1: Retrieved {len(docs)} context chunks.")
-            except Exception as e:
-                print(f"Retrieval failed: {e}")
+            except Exception:
+                pass
 
-        # Load available data schema
         data_schema_content = "{}"
         try:
             with open(os.path.join(config.BASE_DIR, "data_schema.json"), "r") as f:
                 data_schema = json.load(f)
                 data_schema_content = json.dumps(data_schema, indent=2)
-        except Exception as e:
-            print(f"Agent 1: Could not load data schema ({e})")
+        except Exception:
+            pass
 
-        # Build the compact algo index string
         algo_list_str = "\n".join(self.algo_index) if self.algo_index else "No algorithm index loaded."
 
         prompt = f"""You are a geospatial analysis planner.
@@ -73,46 +81,54 @@ DETAILED ALGORITHM REFERENCE (parameters & types):
 {context}
 
 RULES:
-1. Break the task into sequential steps (keep it minimal, 2-4 steps max).
-2. Use ONLY algorithm IDs that appear EXACTLY in the COMPLETE ALGORITHM INDEX above. Do NOT invent or guess algorithm names.
+1. Break the task into sequential steps (approx 4-6 steps).
+2. Use ONLY algorithm IDs that appear EXACTLY in the COMPLETE ALGORITHM INDEX.
 3. Check INPUT DATA TYPE: raster algorithms need .tif, vector algorithms need .shp.
-4. ONLY use files from the AVAILABLE DATA CATALOG. Do NOT hallucinate files that don't exist.
+4. ONLY use files from the AVAILABLE DATA CATALOG.
 5. For clipping a raster using a vector mask, use `gdal:cliprasterbymasklayer`.
-6. Do NOT write code. Output only the logical plan with algorithm IDs.
-7. Be concise. No rambling or repeating yourself.
+6. For buffering rivers, use `native:buffer`.
+7. Do NOT write code. Output only the logical plan with algorithm IDs.
+8. Be concise.
 
 Plan:"""
 
-        import time
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=prompt
-                )
-                return response.text
-            except Exception as e:
-                err_msg = str(e)
-                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                    print(f"⚠️ Planner Rate limited (429). Waiting 35s... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(35)
-                else:
-                    return f"Error generating plan: {e}"
+        # Enable native thinking in Gemini 2.5 Flash
+        gen_config = types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=2048,
+                include_thoughts=True
+            )
+        )
 
-        return "Error: Max retries reached for Planner."
+        full_text = ""
+        try:
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model,
+                contents=prompt,
+                config=gen_config
+            ):
+                # Each chunk may have multiple parts (thought vs output)
+                if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                    for part in chunk.candidates[0].content.parts:
+                        if not part.text:
+                            continue
+                        if getattr(part, 'thought', False):
+                            # This is the model's internal reasoning
+                            if thought_callback:
+                                thought_callback(part.text)
+                        else:
+                            # This is the actual plan output
+                            full_text += part.text
+                            chunk_callback(part.text)
+            return full_text
+        except Exception as e:
+            err = f"\n[ERROR] {e}"
+            chunk_callback(err)
+            return full_text + err
 
 if __name__ == "__main__":
     agent = Agent1Planner()
-    query = "Clip the Kerala DEM using the state boundary shapefile, then calculate the slope of the clipped DEM."
-    print(f"Generating plan for: {query}")
-    plan = agent.generate_plan(query)
-
-    output_path = os.path.join(config.OUTPUT_DIR, "step1_plan.txt")
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(plan)
-
-    print(f"Plan saved to: {output_path}")
-    print("-" * 40)
-    print(plan)
-    print("-" * 40)
+    query = "Flood analysis for Kerala."
+    def log(c): print(c, end="", flush=True)
+    def thought(t): print(f"\n💭 {t}", end="", flush=True)
+    agent.generate_plan_stream(query, log, thought)

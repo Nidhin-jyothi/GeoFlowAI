@@ -10,3 +10,15 @@ tmp/
 env/
 venv/
 venv_test/
+data/
+outputs/
+*.zip
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+*.qpj
+*.qmd
+*.nc
+*.tif

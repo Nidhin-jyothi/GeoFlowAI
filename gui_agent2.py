@@ -251,7 +251,7 @@ class Agent2Window:
             json_str = json.dumps(self._schema_data, indent=2)
             self.root.after(0, lambda: self._on_ready(json_str))
         except Exception as e:
-            self.root.after(0, lambda: self._on_error(str(e)))
+            self.root.after(0, lambda err=str(e): self._on_error(err))
 
     def _on_ready(self, json_str):
         self.spinner.stop()

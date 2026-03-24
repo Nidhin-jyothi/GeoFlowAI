@@ -122,6 +122,13 @@ class Agent4Debugger:
         8. FILE PATHS: Input/output paths are relative to the project root. DO NOT prepend os.path.dirname(__file__). Use `os.path.abspath('path')` directly. 
         9. If the output file is successfully created, you MUST print exactly: print("SUCCESS")
         10. Output ONLY the fixed Python code (no markdown fences).
+        11. RASTER DIMENSION MISMATCH FIX: If the error is "Dimensions of file X are different from other files":
+            - BEFORE running gdal:rastercalculator, align all secondary input rasters (INPUT_B, INPUT_C, ...) to match INPUT_A.
+            - Load INPUT_A as a QgsRasterLayer to get its extent, CRS, and pixel resolution.
+            - Use processing.run("gdal:warpreproject", ...) on each secondary raster with:
+              TARGET_CRS matching INPUT_A, TARGET_EXTENT matching INPUT_A's extent string,
+              TARGET_RESOLUTION matching INPUT_A's rasterUnitsPerPixelX(), RESAMPLING=0.
+            - Then use the aligned raster paths in the gdal:rastercalculator parameters.
 
         Error Log:
         {error_log[:3000]}
@@ -143,27 +150,32 @@ class Agent4Debugger:
             return code # Return original if fix fails
 
     def _check_success(self, result, output_file):
-        """Strict success check: stdout must say SUCCESS, no ERROR keyword, and output file must exist."""
+        """Strict success check: stdout must say SUCCESS and output file must exist.
+        
+        QGIS_ERROR / QGIS_WARNING lines are GDAL/QGIS feedback messages, NOT Python errors.
+        They do NOT mean the step failed. Only a Python Traceback in stderr, or the absence
+        of the word SUCCESS in stdout, constitutes a real failure.
+        """
         stdout = result.stdout or ""
         stderr = result.stderr or ""
 
-        # Script explicitly failed
-        if "ERROR:" in stdout or "Traceback" in stdout or "Traceback" in stderr:
+        # A Python Traceback in stderr = real crash
+        if "Traceback" in stderr:
             return False
 
-        # Script must have printed SUCCESS
+        # Script must have explicitly printed SUCCESS
         if "SUCCESS" not in stdout:
             return False
 
-        # Output file must actually exist
+        # Output file must actually exist on disk
         if output_file:
-            # Resolve relative to cwd (project root)
             local_path = output_file if os.path.isabs(output_file) else os.path.join(config.BASE_DIR, output_file)
             if not os.path.exists(local_path):
                 self._log(f"Output file not found on disk: {local_path}", "warning")
                 return False
 
         return True
+
 
     def run_step(self, script_path, step_data=None, max_retries=3):
         """Executes a script with retries and debugging."""

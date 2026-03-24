@@ -99,7 +99,23 @@ RULES:
 1. Use ONLY algorithm IDs that appear EXACTLY in the COMPLETE ALGORITHM INDEX. Do NOT invent IDs.
 2. Check INPUT DATA TYPE: raster algorithms need .tif, vector algorithms need .shp.
 3. Include ALL mandatory parameters with correct types. Enum = integer index.
-4. Output ONLY valid JSON. No markdown, no explanation."""
+4. Output ONLY valid JSON. No markdown, no explanation.
+5. CRITICAL: NEVER use 'qgis:rastercalculator'. It does NOT work in headless/script mode. Use 'gdal:rastercalculator' instead.
+   - gdal:rastercalculator parameters: INPUT_A (raster path), BAND_A (int), INPUT_B, BAND_B, INPUT_C, BAND_C, FORMULA (e.g. "(A<10)*(B<5)"), OUTPUT (path).
+   - The FORMULA uses single letters A, B, C etc. that correspond to INPUT_A, INPUT_B, INPUT_C.
+   - Example: {{"INPUT_A": "outputs/dem.tif", "BAND_A": 1, "FORMULA": "A<10", "OUTPUT": "outputs/result.tif"}}
+6. For 'gdal:rasterize', you MUST include 'EXTENT', 'WIDTH', and 'HEIGHT'.
+   - 'EXTENT' is string: 'minx,maxx,miny,maxy [EPSG:4326]'.
+   - 'UNITS' should be 0 (Pixels).
+   - Use 'BURN' value (float) to set the output pixel value.
+7. UNIT-AWARE GEOPROCESSING: If a query specifies a distance in METERS or KM (e.g. '10km buffer'), but the input layer is in Degrees (EPSG:4326), you MUST:
+   - Inject a 'native:reprojectlayer' step to EPSG:3857 BEFORE the distance operation.
+   - Use EPSG:3857 (meters) for all subsequent spatial operations in that chain.
+   - Assume GADM (gadm41_IND_*) and OSM roads are in Degrees.
+8. MULTI-VALUE FILTERS: If the plan requires filtering by multiple attribute values (e.g. fclass = 'motorway' OR fclass = 'primary'), you MUST use 'native:extractbyexpression' with an EXPRESSION parameter (e.g. EXPRESSION: "\"fclass\" = 'motorway' OR \"fclass\" = 'primary'"). 
+   - DO NOT use 'native:extractbyattribute' for multi-value OR conditions — it only supports a single value match.
+   - 'native:extractbyexpression' parameters: INPUT (layer path), EXPRESSION (QGIS expression string), OUTPUT (output path).
+"""
 
         import time
         max_retries = 5

@@ -2,6 +2,7 @@ from google import genai
 import config
 import os
 import json
+import textwrap
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from langchain_community.vectorstores import FAISS
@@ -20,7 +21,14 @@ QGIS_INSTALL_PATH = r"C:\Program Files\QGIS 3.40.8\apps\qgis-ltr"
 sys.path.insert(0, os.path.join(QGIS_INSTALL_PATH, "python"))
 sys.path.insert(0, os.path.join(QGIS_INSTALL_PATH, "python", "plugins"))
 
-from qgis.core import QgsApplication, QgsProcessingFeedback
+from qgis.core import (
+    QgsApplication, 
+    QgsProcessingFeedback, 
+    QgsVectorLayer, 
+    QgsRasterLayer,
+    QgsProject,
+    QgsCoordinateReferenceSystem
+)
 
 # Initialize QGIS (headless mode)
 qgs = QgsApplication([], False)
@@ -59,8 +67,8 @@ class Agent3CodeGen:
         if not api_key:
             raise ValueError("Gemini API Key not found in config")
         
+        self.model_name = "gemini-2.0-flash" # Use 2.0 for coding stability
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "gemini-2.5-flash"
 
         # Load vector store for PyQGIS code patterns (RAG)
         try:
@@ -104,15 +112,15 @@ class Agent3CodeGen:
 You are a PyQGIS developer writing the TASK BODY of a headless QGIS script.
 
 The script already has this boilerplate at the top (DO NOT repeat it):
-    import sys, os, QgsApplication, qgs.initQgis(), import processing...
+    import sys, os, QgsApplication, QgsRasterLayer, QgsVectorLayer, processing...
 
 YOUR JOB: write ONLY the task-specific code block below:
 
 TASK:
 - Algorithm: {algo}
 - Description: {description}
-- Input files (relative paths from project root): {inputs}
-- Output file (relative path from project root): {output}
+- Input files (use these EXACT paths): {inputs}
+- Output file (use this EXACT path): {output}
 - Suggested Parameters (from schematizer): {json.dumps(params_dict, indent=2)}
 
 TECHNICAL REFERENCE (PyQGIS Algorithms/Parameters):
@@ -121,28 +129,57 @@ TECHNICAL REFERENCE (PyQGIS Algorithms/Parameters):
 RULES:
 1. DO NOT import QgsApplication, initQgis, or exitQgis. They are handled.
 2. Use processing.run("{algo}", params, feedback=feedback) — use EXACTLY the algorithm id from the task. Always pass feedback=feedback.
-3. Use exact parameter names from the TECHNICAL REFERENCE.
-4. For Enum parameters, use the INTEGER INDEX from the Options listed in the reference.
-5. For Extent parameters, load the input layer and format as: 
-   f"{{ext.xMinimum()}},{{ext.xMaximum()}},{{ext.yMinimum()}},{{ext.yMaximum()}} [EPSG:4326]"
-6. FILE PATHS: Input/output paths are relative to the project root. DO NOT prepend os.path.dirname(__file__). Use `os.path.abspath('path')` directly. 
-7. If the output file is successfully created, you MUST print exactly: print("SUCCESS")
-8. Output ONLY the Python code block (no markdown fences).
+3. Use EXACT file paths provided in the TASK (e.g. {inputs}). NEVER use placeholders like '@step_01_output' or invent new filenames.
+4. If you need to load a layer (e.g. to get its extent), use:
+   layer = QgsVectorLayer(path, "name", "ogr") or QgsRasterLayer(path, "name")
+5. Use exact parameter names from the TECHNICAL REFERENCE.
+6. For Enum parameters, use the INTEGER INDEX from the Options listed in the reference.
+7. FILE PATHS: Use absolute paths by doing: `os.path.abspath('path')`.
+8. If the output file is successfully created, you MUST print exactly: print("SUCCESS")
+9. Output ONLY the Python code block (no markdown fences).
+10. CRITICAL: NEVER use the algorithm 'qgis:rastercalculator'. Use 'gdal:rastercalculator' instead.
+    - gdal:rastercalculator FORMULA uses single letters (A, B, C...) for each input raster.
+    - Parameters: INPUT_A=path_to_raster1, BAND_A=1, INPUT_B=path_to_raster2, BAND_B=1, FORMULA="(A<10)*(B<5)", OUTPUT=output_path
+    - Example formula for flood risk: "(A<10)*(B<5)*(C==1)" where A=DEM, B=Slope, C=BufferRaster
+11. For 'gdal:cliprasterbymasklayer', ONLY use these parameters: INPUT, MASK, CROP_TO_CUTLINE=True, KEEP_RESOLUTION=True, NODATA=None, ALPHA_BAND=False, OPTIONS='', OUTPUT.
+    - Do NOT add SOURCE_CRS, TARGET_CRS, or TARGET_EXTENT — these cause 'Process returned error code 1'.
+12. For 'gdal:rasterize', you MUST load a reference raster (e.g. the original DEM) to get its WIDTH, HEIGHT, and EXTENT.
+    - EXTENT string format: f"{{ext.xMinimum()}},{{ext.xMaximum()}},{{ext.yMinimum()}},{{ext.yMaximum()}} [EPSG:4326]"
+    - Parameters: INPUT, BURN=1, UNITS=0 (Pixels), WIDTH=width, HEIGHT=height, EXTENT=extent_str, DATA_TYPE=0 (Byte), OUTPUT.
+13. For 'gdal:rastercalculator', use single letters A, B, C... as variables in the FORMULA.
+14. CRITICAL: Start all top-level code (like params = { ... }) at column 0 (NO INDENTATION).
+15. CRITICAL: For 'gdal:rastercalculator' with MULTIPLE input rasters (INPUT_A + INPUT_B, etc.):
+    - The rasters MUST have IDENTICAL pixel dimensions (width x height). gdal_calc.py will CRASH if they differ even by 1 pixel.
+    - BEFORE running the raster calculator, you MUST align all secondary rasters (B, C, ...) to match raster A.
+    - Do this by loading raster A with QgsRasterLayer, extracting its extent and size, then using processing.run("gdal:warpreproject", ...) on each secondary raster to match:
+      ```
+      ref = QgsRasterLayer(input_a_path, "ref")
+      ext = ref.extent()
+      extent_str = f"{{ext.xMinimum()}},{{ext.xMaximum()}},{{ext.yMinimum()}},{{ext.yMaximum()}} [{{ref.crs().authid()}}]"
+      aligned = processing.run("gdal:warpreproject", {{
+          'INPUT': input_b_path,
+          'TARGET_CRS': ref.crs().authid(),
+          'TARGET_EXTENT': extent_str,
+          'TARGET_RESOLUTION': ref.rasterUnitsPerPixelX(),
+          'RESAMPLING': 0,
+          'OUTPUT': aligned_b_path
+      }}, feedback=feedback)
+      ```
+    - Then use the aligned raster as INPUT_B in the calculator.
 """
-
 
         try:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt
             )
-            task_body = extract_python_code(response.text)
+            # Remove any markdown fences or extraneous whitespace
+            task_body = extract_python_code(response.text).strip()
 
-            # ── Assemble the full script ────────────────────────────────────
-            # Wrap the task body in a try/finally so exitQgis is always called.
-            indented_body = "\n".join(
-                "    " + line for line in task_body.splitlines()
-            )
+            # ── Assembly ──────────────────────────────────────────────────
+            # Indent the task body correctly for the try: block
+            indented_body = textwrap.indent(task_body, "    ")
+            
             full_script = (
                 QGIS_HEADER
                 + "\ntry:\n"

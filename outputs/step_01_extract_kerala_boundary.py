@@ -7,7 +7,14 @@ QGIS_INSTALL_PATH = r"C:\Program Files\QGIS 3.40.8\apps\qgis-ltr"
 sys.path.insert(0, os.path.join(QGIS_INSTALL_PATH, "python"))
 sys.path.insert(0, os.path.join(QGIS_INSTALL_PATH, "python", "plugins"))
 
-from qgis.core import QgsApplication, QgsProcessingFeedback
+from qgis.core import (
+    QgsApplication, 
+    QgsProcessingFeedback, 
+    QgsVectorLayer, 
+    QgsRasterLayer,
+    QgsProject,
+    QgsCoordinateReferenceSystem
+)
 
 # Initialize QGIS (headless mode)
 qgs = QgsApplication([], False)
@@ -35,34 +42,17 @@ class LoggingFeedback(QgsProcessingFeedback):
 feedback = LoggingFeedback()
 
 try:
-    # Define input and output paths relative to the project root
-    input_layer_path = os.path.abspath('data/gadm41_IND_1.shp')
-    output_layer_path = os.path.abspath('outputs/kerala_boundary.shp')
-    
-    # Ensure the output directory exists
-    os.makedirs(os.path.dirname(output_layer_path), exist_ok=True)
-    
-    # Define the parameters for the native:extractbyattribute algorithm
     params = {
-        'INPUT': input_layer_path,
+        'INPUT': os.path.abspath('data/gadm41_IND_1.shp'),
         'FIELD': 'NAME_1',
-        'OPERATOR': 0,  # 0 corresponds to '='
+        'OPERATOR': 0,
         'VALUE': 'Kerala',
-        'OUTPUT': output_layer_path
+        'OUTPUT': os.path.abspath('outputs/Kerala_Boundary.shp'),
+        'FAIL_OUTPUT': 'TEMPORARY_OUTPUT'
     }
-    
-    # Run the processing algorithm
-    result = processing.run("native:extractbyattribute", params, feedback=feedback)
-    
-    # Check if the output file was created successfully
-    if os.path.exists(output_layer_path):
-        print("SUCCESS")
-    else:
-        # This part is not explicitly requested but good for debugging if needed
-        print(f"Error: Output file not found at {output_layer_path}")
-        if 'OUTPUT' in result and result['OUTPUT'] is None:
-            print("Algorithm returned None for OUTPUT.")
-        # More detailed error logging can be added if result contains error messages
-        # For example, by checking feedback.messages() or result.get('ERRORS')
+
+    processing.run("native:extractbyattribute", params, feedback=feedback)
+
+    print("SUCCESS")
 finally:
     qgs.exitQgis()

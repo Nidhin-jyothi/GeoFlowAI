@@ -1,18 +1,57 @@
-1.  **Extract Kerala State Boundary:**
+Here's a QGIS workflow to identify flood-prone areas in Kerala, using the provided data and algorithms:
+
+**Objective:** Identify areas in Kerala that are susceptible to flooding based on low elevation, low slope, and proximity to rivers.
+
+---
+**Workflow Steps:**
+
+1.  **Extract Kerala Administrative Boundary:**
     *   **Algorithm ID:** `native:extractbyattribute`
-    *   **Input Layer:** `data/gadm41_IND_1.shp` (India Admin Level 1)
-    *   **Field:** `NAME_1` (assuming this field contains state names)
-    *   **Operator:** `=`
-    *   **Value:** `Kerala`
-    *   **Output:** `kerala_boundary.shp` (Temporary vector layer)
+    *   **Parameters:**
+        *   INPUT: `India Admin Level 1`
+        *   FIELD: `NAME_1` (assuming the state name is in this field)
+        *   OPERATOR: `=`
+        *   VALUE: `Kerala`
+        *   OUTPUT: `Kerala_Boundary` (vector)
 
-2.  **Clip DEM using Kerala Boundary:**
+2.  **Prepare Hydrology and DEM Data for Kerala:**
     *   **Algorithm ID:** `gdal:cliprasterbymasklayer`
-    *   **Input Layer:** `data/kerala_dem.tif` (Kerala DEM)
-    *   **Mask Layer:** Output from Step 1 (`kerala_boundary.shp`)
-    *   **Output:** `kerala_clipped_dem.tif` (Temporary raster layer)
+    *   **Parameters:**
+        *   INPUT: `Kerala DEM`
+        *   MASK: `Kerala_Boundary`
+        *   OUTPUT: `Kerala_DEM_Clipped` (raster)
+    *   **Algorithm ID:** `gdal:clipvectorbypolygon`
+    *   **Parameters:**
+        *   INPUT: `HydroRIVERS South Asia`
+        *   MASK: `Kerala_Boundary`
+        *   OUTPUT: `Kerala_Rivers_Clipped` (vector)
 
-3.  **Calculate Slope:**
-    *   **Algorithm ID:** `gdal:slope`
-    *   **Input Layer:** Output from Step 2 (`kerala_clipped_dem.tif`)
-    *   **Output:** `kerala_slope.tif` (Final raster layer)
+3.  **Derive Flood Risk Factors (Slope, Low Elevation, River Proximity):**
+    *   **Algorithm ID:** `native:slope`
+    *   **Parameters:**
+        *   INPUT: `Kerala_DEM_Clipped`
+        *   OUTPUT: `Kerala_Slope` (raster)
+    *   **Algorithm ID:** `native:buffer`
+    *   **Parameters:**
+        *   INPUT: `Kerala_Rivers_Clipped`
+        *   DISTANCE: `500` (meters, example buffer distance)
+        *   OUTPUT: `Kerala_Rivers_Buffer` (vector)
+
+4.  **Rasterize River Proximity and Combine Factors:**
+    *   **Algorithm ID:** `gdal:rasterize`
+    *   **Parameters:**
+        *   INPUT: `Kerala_Rivers_Buffer`
+        *   INPUT_RASTER: `Kerala_DEM_Clipped` (for extent and resolution reference)
+        *   BURN: `1`
+        *   OUTPUT: `Kerala_Rivers_Buffer_Raster` (raster)
+    *   **Algorithm ID:** `qgis:rastercalculator`
+    *   **Parameters:**
+        *   EXPRESSION: `"Kerala_DEM_Clipped@1" < 20 AND "Kerala_Slope@1" < 5 AND "Kerala_Rivers_Buffer_Raster@1" == 1` (This identifies areas with elevation below 20m, slope less than 5 degrees, AND within the river buffer. Adjust thresholds as needed.)
+        *   OUTPUT: `Flood_Prone_Raster` (raster)
+
+5.  **Polygonize Flood-Prone Areas:**
+    *   **Algorithm ID:** `gdal:polygonize`
+    *   **Parameters:**
+        *   INPUT: `Flood_Prone_Raster`
+        *   FIELD: `DN`
+        *   OUTPUT: `Flood_Prone_Areas_Polygons` (vector)

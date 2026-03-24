@@ -130,6 +130,7 @@ class TypewriterText(tk.Text):
         super().__init__(master, **kw)
         self._queue = ""
         self._idx = 0
+        self._speed = 8
         self._typing = False
 
         # Styling tags
@@ -137,6 +138,8 @@ class TypewriterText(tk.Text):
         self.tag_configure("bullet", foreground=CYAN)
         self.tag_configure("algorithm", foreground=CYAN_GLOW, font=("Consolas", 10, "bold"))
         self.tag_configure("normal", foreground=WHITE)
+        self.tag_configure("thinking", foreground=CYAN_DIM, font=("Consolas", 9, "italic"))
+        self.tag_configure("section", foreground=AMBER, font=("Consolas", 11, "bold"))
 
     def typewrite(self, text, speed=8):
         """Start typing text. speed = chars per frame (≈30 fps)."""
@@ -240,7 +243,7 @@ class Agent1Window:
             highlightthickness=1, highlightcolor=CYAN
         )
         self.query_entry.pack(side="left", fill="x", expand=True, ipady=6)
-        self.query_entry.insert(0, "Clip the Kerala DEM using the state boundary shapefile, then calculate the slope of the clipped DEM.")
+        self.query_entry.insert(0, "Identify flood-prone areas in Kerala by extracting the state boundary, clipping the DEM and river network, buffering rivers by 500m, and finding low-elevation areas with low slope near rivers.")
         self.query_entry.bind("<Return>", lambda e: self._on_generate())
 
         self.gen_btn = tk.Button(
@@ -262,7 +265,7 @@ class Agent1Window:
         self.status_label.pack(side="left")
 
         self.model_label = tk.Label(
-            status_bar, text=f"MODEL: gemini-2.5-flash  ·  RAG: checking…",
+            status_bar, text=f"MODEL: gemini-2.0-flash  ·  RAG: checking…",
             font=self.font_status, fg=GREY, bg=BG, anchor="e"
         )
         self.model_label.pack(side="right")
@@ -313,11 +316,6 @@ class Agent1Window:
         )
         self.char_count.pack(side="right")
 
-        # Separator
-        sep2 = tk.Canvas(self.root, height=1, bg=BG, highlightthickness=0)
-        sep2.pack(fill="x", padx=20, side="bottom")
-        sep2.create_line(0, 0, 2000, 0, fill=CYAN_DIM, width=1)
-
     # ──────────────────────────────────────────────────────────────
     #  Actions
     # ──────────────────────────────────────────────────────────────
@@ -325,32 +323,12 @@ class Agent1Window:
         self.status_label.configure(text=f"STATUS: {text}", fg=colour)
 
     def _show_spinner(self):
-        self.output_frame.pack_forget()
-        self.spinner_frame.pack(expand=True)
+        self.spinner_frame.pack(pady=(0, 8))
         self.spinner.start()
 
     def _hide_spinner(self):
         self.spinner.stop()
         self.spinner_frame.pack_forget()
-        self.output_frame.pack(fill="both", expand=True)
-
-    def _on_generate(self):
-        query = self.query_entry.get().strip()
-        if not query:
-            self._set_status("ERROR: EMPTY QUERY", RED)
-            return
-
-        # Disable input
-        self.gen_btn.configure(state="disabled", bg=GREY)
-        self.query_entry.configure(state="disabled")
-        self.save_btn.configure(state="disabled", bg=DARK_GREY, fg=GREY)
-
-        self._set_status("INITIALIZING AGENT 1…", AMBER)
-        self._show_spinner()
-        self._pulse_thinking()
-
-        # Run in background thread
-        threading.Thread(target=self._run_planner, args=(query,), daemon=True).start()
 
     def _pulse_thinking(self):
         """Cycle the thinking label text for visual liveliness."""
@@ -370,11 +348,41 @@ class Agent1Window:
         self.thinking_label.configure(text=phases[(idx + 1) % len(phases)])
         self.root.after(1200, self._pulse_thinking)
 
-    def _run_planner(self, query):
-        """Background: import & run Agent1Planner, then update GUI."""
-        try:
-            self.root.after(0, lambda: self._set_status("LOADING PLANNER MODULE…", AMBER))
+    def _insert_section_header(self, text):
+        """Insert a styled section header into the output box."""
+        self.output_text.configure(state="normal")
+        self.output_text.insert("end", text + "\n", "section")
+        self.output_text.see("end")
+        self.output_text.configure(state="disabled")
 
+    def _append_thinking(self, text):
+        """Append a thought chunk into the main output box with thinking tag."""
+        self.output_text.configure(state="normal")
+        self.output_text.insert("end", text, "thinking")
+        self.output_text.see("end")
+        self.output_text.configure(state="disabled")
+
+    def _on_generate(self):
+        query = self.query_entry.get().strip()
+        if not query:
+            self._set_status("ERROR: EMPTY QUERY", RED)
+            return
+
+        # Disable input
+        self.gen_btn.configure(state="disabled", bg=GREY)
+        self.query_entry.configure(state="disabled")
+        self.save_btn.configure(state="disabled", bg=DARK_GREY, fg=GREY)
+
+        self._set_status("INITIALIZING AGENT 1…", AMBER)
+        self._show_spinner()
+        self._pulse_thinking()
+
+        # Run in background thread
+        threading.Thread(target=self._run_planner, args=(query,), daemon=True).start()
+
+    def _run_planner(self, query):
+        """Background thread execution."""
+        try:
             from agent1_planner import Agent1Planner
             planner = Agent1Planner()
 
@@ -382,48 +390,57 @@ class Agent1Window:
             self.root.after(0, lambda: self.model_label.configure(
                 text=f"MODEL: {planner.model}  ·  RAG: {rag_status}"
             ))
-            self.root.after(0, lambda: self._set_status("GENERATING WORKFLOW PLAN…", CYAN))
 
-            plan = planner.generate_plan(query)
+            # Clear output and show it for streaming
+            self.root.after(0, lambda: self.output_text.set_text_instant(""))
+            self.root.after(0, lambda: self.output_frame.pack(fill="both", expand=True))
+
+            def on_chunk(text):
+                self.root.after(0, lambda t=text: self._append_stream_chunk(t))
+
+            def on_thought(text):
+                self.root.after(0, lambda t=text: self._append_thinking(t))
+
+            # Insert a thinking header before streaming begins
+            self.root.after(0, lambda: self._insert_section_header("💭 THINKING"))
+            plan = planner.generate_plan_stream(query, on_chunk, on_thought)
+            # Insert plan header — this runs after thinking is done
+            self.root.after(0, lambda: self._insert_section_header("\n📋 PLAN"))
             self._plan_text = plan
-
-            # Update GUI on main thread
             self.root.after(0, lambda: self._on_plan_ready(plan))
 
         except Exception as e:
             self.root.after(0, lambda: self._on_plan_error(str(e)))
 
+    def _append_stream_chunk(self, text):
+        self.output_text.configure(state="normal")
+        self.output_text.insert("end", text)
+        self.output_text.see("end")
+        self.output_text.configure(state="disabled")
+
     def _on_plan_ready(self, plan):
         self._hide_spinner()
         self._set_status("PLAN GENERATED SUCCESSFULLY", CYAN)
-        self.output_text.typewrite(plan, speed=12)
-        self.char_count.configure(text=f"{len(plan)} chars  ·  {len(plan.splitlines())} lines")
-
-        # Re-enable controls
+        self.char_count.configure(text=f"{len(plan)} chars")
         self.gen_btn.configure(state="normal", bg=CYAN_DIM)
         self.query_entry.configure(state="normal")
         self.save_btn.configure(state="normal", bg=AMBER_DIM, fg=WHITE)
 
     def _on_plan_error(self, err):
         self._hide_spinner()
-        self._set_status(f"ERROR: {err[:80]}", RED)
-        self.output_text.set_text_instant(f"⛔  Plan generation failed:\n\n{err}")
-
+        self._set_status(f"ERROR: {err[:50]}", RED)
         self.gen_btn.configure(state="normal", bg=CYAN_DIM)
         self.query_entry.configure(state="normal")
 
     def _on_save(self):
-        if not hasattr(self, "_plan_text"):
-            return
+        if not hasattr(self, "_plan_text"): return
         path = os.path.join(config.OUTPUT_DIR, "step1_plan.txt")
         with open(path, "w", encoding="utf-8") as f:
             f.write(self._plan_text)
         self._set_status(f"PLAN SAVED → {path}", CYAN)
 
-    # ──────────────────────────────────────────────────────────────
     def run(self):
         self.root.mainloop()
-
 
 if __name__ == "__main__":
     app = Agent1Window()

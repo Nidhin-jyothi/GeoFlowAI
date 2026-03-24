@@ -1,2 +1,1 @@
-ERROR 1: Attempt to create 0x0 dataset is illegal,sizes must be larger than zero.
-ERROR 1: Cannot create C:\Users\nj825\OneDrive\Desktop\GeoFlowAI\outputs\Kerala_boundary_raster.tif
+ERROR 6: CreateAttribute() not implemented

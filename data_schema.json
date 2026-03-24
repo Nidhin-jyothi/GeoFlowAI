@@ -29,7 +29,37 @@
       "name": "Kerala DEM",
       "path": "kerala_dem.tif",
       "type": "raster",
-      "description": "Digital Elevation Model of Kerala region"
+      "description": "Digital Elevation Model (DEM) of Kerala region."
+    },
+    {
+      "name": "HydroRIVERS South Asia",
+      "path": "HydroRIVERS_v10_as.shp",
+      "type": "vector",
+      "description": "River network lines for South Asia."
+    },
+    {
+      "name": "India Solar DNI",
+      "path": "India_DNI.tif",
+      "type": "raster",
+      "description": "Direct Normal Irradiation (DNI) for India. Correct GIS GeoTIFF with georeferencing."
+    },
+    {
+      "name": "India Solar PVOUT",
+      "path": "India_PVOUT.tif",
+      "type": "raster",
+      "description": "PhotoVoltaic Power Potential (PVOUT) for India. Correct GIS GeoTIFF with georeferencing."
+    },
+    {
+      "name": "India Solar GHI",
+      "path": "India_GHI.tif",
+      "type": "raster",
+      "description": "Global Horizontal Irradiation (GHI) for India. Correct GIS GeoTIFF with georeferencing."
+    },
+    {
+      "name": "South India Roads (OSM)",
+      "path": "southern-zone-260316-free.shp/gis_osm_roads_free_1.shp",
+      "type": "vector",
+      "description": "Comprehensive road network for South India from OpenStreetMap. Contains 'fclass' field (e.g. 'motorway', 'primary')."
     }
   ]
 }
