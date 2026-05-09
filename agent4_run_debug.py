@@ -129,6 +129,11 @@ class Agent4Debugger:
               TARGET_CRS matching INPUT_A, TARGET_EXTENT matching INPUT_A's extent string,
               TARGET_RESOLUTION matching INPUT_A's rasterUnitsPerPixelX(), RESAMPLING=0.
             - Then use the aligned raster paths in the gdal:rastercalculator parameters.
+        12. NEVER CREATE DUMMY DATA. If an input file is missing, do NOT create fake/dummy layers.
+            Instead, raise an error so the pipeline can fail properly.
+        13. POLYGONIZE FIELD: 'gdal:polygonize' ALWAYS creates field 'DN'. Downstream filters must use FIELD='DN'.
+        14. For 'gdal:cliprasterbymasklayer', ONLY use: INPUT, MASK, CROP_TO_CUTLINE=True, KEEP_RESOLUTION=True, OUTPUT. No other params.
+        15. For 'gdal:rastercalculator', always use parameter name 'FORMULA' (never 'EXPRESSION'). Syntax: '*' for AND, '==' for equals.
 
         Error Log:
         {error_log[:3000]}

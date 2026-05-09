@@ -47,8 +47,7 @@ try:
         'FIELD': 'NAME_1',
         'OPERATOR': 0,
         'VALUE': 'Kerala',
-        'OUTPUT': os.path.abspath('outputs/Kerala_Boundary.shp'),
-        'FAIL_OUTPUT': 'TEMPORARY_OUTPUT'
+        'OUTPUT': os.path.abspath('outputs/kerala_boundary.shp')
     }
 
     processing.run("native:extractbyattribute", params, feedback=feedback)

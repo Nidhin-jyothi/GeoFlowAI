@@ -23,4 +23,3 @@ def extract_python_code(raw_output: str) -> str:
 
     # 4. Cleanup and dedent
     return textwrap.dedent(code).strip()
-

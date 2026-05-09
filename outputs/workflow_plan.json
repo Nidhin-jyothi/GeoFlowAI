@@ -11,164 +11,176 @@
     "input_files": [
       "data/gadm41_IND_1.shp"
     ],
-    "output_file": "outputs/Kerala_Boundary.shp",
+    "output_file": "outputs/kerala_boundary.shp",
     "script_filename": "step_01_extract_kerala_boundary.py"
   },
   {
     "step_id": "step_02",
-    "algorithm": "native:reprojectlayer",
+    "algorithm": "gdal:cliprasterbymasklayer",
     "parameters": {
-      "INPUT": "outputs/Kerala_Boundary.shp",
-      "TARGET_CRS": "EPSG:3857"
+      "INPUT": "data/kerala_dem.tif",
+      "MASK": "outputs/kerala_boundary.shp",
+      "CROP_TO_CUTLINE": true,
+      "KEEP_RESOLUTION": true
     },
     "input_files": [
-      "outputs/Kerala_Boundary.shp"
+      "data/kerala_dem.tif",
+      "outputs/kerala_boundary.shp"
     ],
-    "output_file": "outputs/Kerala_Boundary_3857.shp",
-    "script_filename": "step_02_reproject_kerala_boundary_3857.py"
+    "output_file": "outputs/kerala_dem_clipped.tif",
+    "script_filename": "step_02_clip_dem.py"
   },
   {
     "step_id": "step_03",
-    "algorithm": "native:reprojectlayer",
+    "algorithm": "gdal:rastercalculator",
     "parameters": {
-      "INPUT": "data/kerala_dem.tif",
-      "TARGET_CRS": "EPSG:3857"
+      "INPUT_A": "outputs/kerala_dem_clipped.tif",
+      "BAND_A": 1,
+      "FORMULA": "A <= 20",
+      "OUTPUT": "outputs/low_elevation_raster.tif"
     },
     "input_files": [
-      "data/kerala_dem.tif"
+      "outputs/kerala_dem_clipped.tif"
     ],
-    "output_file": "outputs/Kerala_DEM_3857.tif",
-    "script_filename": "step_03_reproject_kerala_dem_3857.py"
+    "output_file": "outputs/low_elevation_raster.tif",
+    "script_filename": "step_03_identify_low_elevation.py"
   },
   {
     "step_id": "step_04",
-    "algorithm": "gdal:cliprasterbymasklayer",
+    "algorithm": "gdal:clipvectorbypolygon",
     "parameters": {
-      "INPUT": "outputs/Kerala_DEM_3857.tif",
-      "MASK": "outputs/Kerala_Boundary_3857.shp"
+      "INPUT": "data/HydroRIVERS_v10_as.shp",
+      "MASK": "outputs/kerala_boundary.shp"
     },
     "input_files": [
-      "outputs/Kerala_DEM_3857.tif",
-      "outputs/Kerala_Boundary_3857.shp"
+      "data/HydroRIVERS_v10_as.shp",
+      "outputs/kerala_boundary.shp"
     ],
-    "output_file": "outputs/Kerala_DEM_Clipped_3857.tif",
-    "script_filename": "step_04_clip_kerala_dem_3857.py"
+    "output_file": "outputs/kerala_rivers.shp",
+    "script_filename": "step_04_clip_rivers.py"
   },
   {
     "step_id": "step_05",
     "algorithm": "native:reprojectlayer",
     "parameters": {
-      "INPUT": "data/HydroRIVERS_v10_as.shp",
+      "INPUT": "outputs/kerala_rivers.shp",
       "TARGET_CRS": "EPSG:3857"
     },
     "input_files": [
-      "data/HydroRIVERS_v10_as.shp"
+      "outputs/kerala_rivers.shp"
     ],
-    "output_file": "outputs/HydroRIVERS_South_Asia_3857.shp",
-    "script_filename": "step_05_reproject_hydrorivers_3857.py"
+    "output_file": "outputs/kerala_rivers_3857.shp",
+    "script_filename": "step_05_reproject_rivers.py"
   },
   {
     "step_id": "step_06",
-    "algorithm": "gdal:clipvectorbypolygon",
-    "parameters": {
-      "INPUT": "outputs/HydroRIVERS_South_Asia_3857.shp",
-      "MASK": "outputs/Kerala_Boundary_3857.shp"
-    },
-    "input_files": [
-      "outputs/HydroRIVERS_South_Asia_3857.shp",
-      "outputs/Kerala_Boundary_3857.shp"
-    ],
-    "output_file": "outputs/Kerala_Rivers_Clipped_3857.shp",
-    "script_filename": "step_06_clip_kerala_rivers_3857.py"
-  },
-  {
-    "step_id": "step_07",
-    "algorithm": "native:slope",
-    "parameters": {
-      "INPUT": "outputs/Kerala_DEM_Clipped_3857.tif",
-      "Z_FACTOR": 1
-    },
-    "input_files": [
-      "outputs/Kerala_DEM_Clipped_3857.tif"
-    ],
-    "output_file": "outputs/Kerala_Slope_3857.tif",
-    "script_filename": "step_07_slope_3857.py"
-  },
-  {
-    "step_id": "step_08",
     "algorithm": "native:buffer",
     "parameters": {
-      "INPUT": "outputs/Kerala_Rivers_Clipped_3857.shp",
-      "DISTANCE": 500,
+      "INPUT": "outputs/kerala_rivers_3857.shp",
+      "DISTANCE": 1000,
       "SEGMENTS": 5,
       "END_CAP_STYLE": 0,
       "JOIN_STYLE": 0,
-      "MITER_LIMIT": 10,
-      "DISSOLVE": false
+      "DISSOLVE": true
     },
     "input_files": [
-      "outputs/Kerala_Rivers_Clipped_3857.shp"
+      "outputs/kerala_rivers_3857.shp"
     ],
-    "output_file": "outputs/Kerala_Rivers_Buffer_3857.shp",
-    "script_filename": "step_08_buffer_rivers_3857.py"
+    "output_file": "outputs/kerala_river_buffer_3857.shp",
+    "script_filename": "step_06_buffer_rivers.py"
+  },
+  {
+    "step_id": "step_07",
+    "algorithm": "native:reprojectlayer",
+    "parameters": {
+      "INPUT": "outputs/kerala_river_buffer_3857.shp",
+      "TARGET_CRS": "EPSG:4326"
+    },
+    "input_files": [
+      "outputs/kerala_river_buffer_3857.shp"
+    ],
+    "output_file": "outputs/kerala_river_buffer_4326.shp",
+    "script_filename": "step_07_reproject_buffer_back.py"
+  },
+  {
+    "step_id": "step_08",
+    "algorithm": "gdal:rasterize",
+    "parameters": {
+      "INPUT": "outputs/kerala_river_buffer_4326.shp",
+      "BURN": 1.0,
+      "UNITS": 0,
+      "NODATA": 0.0,
+      "DATA_TYPE": 0,
+      "EXTENT": "outputs/kerala_dem_clipped.tif",
+      "WIDTH": "outputs/kerala_dem_clipped.tif",
+      "HEIGHT": "outputs/kerala_dem_clipped.tif"
+    },
+    "input_files": [
+      "outputs/kerala_river_buffer_4326.shp",
+      "outputs/kerala_dem_clipped.tif"
+    ],
+    "output_file": "outputs/river_buffer_raster.tif",
+    "script_filename": "step_08_rasterize_river_buffer.py"
   },
   {
     "step_id": "step_09",
-    "algorithm": "gdal:rasterize",
+    "algorithm": "gdal:rastercalculator",
     "parameters": {
-      "INPUT": "outputs/Kerala_Rivers_Buffer_3857.shp",
-      "FIELD": "",
-      "BURN": 1.0,
-      "UNITS": 0,
-      "EXTENT": "8325000,8625000,900000,1420000 [EPSG:3857]",
-      "WIDTH": 3000,
-      "HEIGHT": 5200,
-      "NODATA": 0.0,
-      "OPTIONS": "",
-      "DATA_TYPE": 5
+      "INPUT_A": "outputs/low_elevation_raster.tif",
+      "BAND_A": 1,
+      "INPUT_B": "outputs/river_buffer_raster.tif",
+      "BAND_B": 1,
+      "FORMULA": "(A==1)*(B==1)",
+      "OUTPUT": "outputs/flood_prone_raster.tif"
     },
     "input_files": [
-      "outputs/Kerala_Rivers_Buffer_3857.shp",
-      "outputs/Kerala_DEM_Clipped_3857.tif"
+      "outputs/low_elevation_raster.tif",
+      "outputs/river_buffer_raster.tif"
     ],
-    "output_file": "outputs/Kerala_Rivers_Buffer_Raster_3857.tif",
-    "script_filename": "step_09_rasterize_rivers_buffer_3857.py"
+    "output_file": "outputs/flood_prone_raster.tif",
+    "script_filename": "step_09_combine_criteria.py"
   },
   {
     "step_id": "step_10",
-    "algorithm": "gdal:rastercalculator",
+    "algorithm": "gdal:polygonize",
     "parameters": {
-      "INPUT_A": "outputs/Kerala_DEM_Clipped_3857.tif",
-      "BAND_A": 1,
-      "INPUT_B": "outputs/Kerala_Slope_3857.tif",
-      "BAND_B": 1,
-      "INPUT_C": "outputs/Kerala_Rivers_Buffer_Raster_3857.tif",
-      "BAND_C": 1,
-      "FORMULA": "(A < 20) * (B < 5) * (C == 1)",
-      "OUTPUT": null
+      "INPUT": "outputs/flood_prone_raster.tif",
+      "BAND": 1,
+      "FIELD": "DN"
     },
     "input_files": [
-      "outputs/Kerala_DEM_Clipped_3857.tif",
-      "outputs/Kerala_Slope_3857.tif",
-      "outputs/Kerala_Rivers_Buffer_Raster_3857.tif"
+      "outputs/flood_prone_raster.tif"
     ],
-    "output_file": "outputs/Flood_Prone_Raster_3857.tif",
-    "script_filename": "step_10_raster_calculator_flood_prone_3857.py"
+    "output_file": "outputs/flood_prone_polygons_raw.shp",
+    "script_filename": "step_10_polygonize_flood_prone.py"
   },
   {
     "step_id": "step_11",
-    "algorithm": "gdal:polygonize",
+    "algorithm": "native:extractbyattribute",
     "parameters": {
-      "INPUT": "outputs/Flood_Prone_Raster_3857.tif",
-      "BAND": 1,
+      "INPUT": "outputs/flood_prone_polygons_raw.shp",
       "FIELD": "DN",
-      "EIGHT_CONNECTEDNESS": false,
-      "OUTPUT": null
+      "OPERATOR": 0,
+      "VALUE": "1"
     },
     "input_files": [
-      "outputs/Flood_Prone_Raster_3857.tif"
+      "outputs/flood_prone_polygons_raw.shp"
     ],
-    "output_file": "outputs/Flood_Prone_Areas_Polygons_3857.shp",
-    "script_filename": "step_11_polygonize_flood_prone_3857.py"
+    "output_file": "outputs/flood_prone_polygons_filtered.shp",
+    "script_filename": "step_11_filter_polygonized_areas.py"
+  },
+  {
+    "step_id": "step_12",
+    "algorithm": "native:clip",
+    "parameters": {
+      "INPUT": "outputs/flood_prone_polygons_filtered.shp",
+      "OVERLAY": "outputs/kerala_boundary.shp"
+    },
+    "input_files": [
+      "outputs/flood_prone_polygons_filtered.shp",
+      "outputs/kerala_boundary.shp"
+    ],
+    "output_file": "outputs/flood_prone_areas.shp",
+    "script_filename": "step_12_final_clip_to_boundary.py"
   }
 ]

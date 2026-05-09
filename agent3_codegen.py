@@ -166,6 +166,8 @@ RULES:
       }}, feedback=feedback)
       ```
     - Then use the aligned raster as INPUT_B in the calculator.
+16. POLYGONIZE FIELD NAME: When using 'gdal:polygonize', the output shapefile ALWAYS creates a field called 'DN' (regardless of the FIELD parameter value). Any downstream step that filters this output must use FIELD='DN', not custom names like 'Suitability' or 'Value'.
+17. For 'gdal:cliprasterbymasklayer', ONLY use: INPUT, MASK, CROP_TO_CUTLINE=True, KEEP_RESOLUTION=True, OUTPUT. Do NOT include SOURCE_CRS, TARGET_CRS, TARGET_EXTENT, NODATA, or SET_RESOLUTION.
 """
 
         try:

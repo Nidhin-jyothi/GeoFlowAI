@@ -45,6 +45,17 @@ class Agent2Schematizer:
             print(f"Schematizer: Knowledge Base not found ({e}).")
             self.retriever = None
 
+        # Load Workflow Pattern Store (few-shot examples via RAG)
+        self.workflow_retriever = None
+        try:
+            wf_store = FAISS.load_local(
+                "workflow_patterns_store", self.embedding_model,
+                allow_dangerous_deserialization=True)
+            self.workflow_retriever = wf_store.as_retriever(search_kwargs={"k": 2})
+            print("Schematizer: Loaded Workflow Pattern Store for few-shot examples.")
+        except Exception as e:
+            print(f"Schematizer: Workflow Pattern Store not found ({e}).")
+
     def validate_algorithms(self, steps):
         """Check that every algorithm ID in the plan actually exists in QGIS."""
         if not self.valid_algos:
@@ -57,6 +68,23 @@ class Agent2Schematizer:
                 invalid.append((step.get("step_id", "?"), algo))
         return len(invalid) == 0, invalid
 
+    def _retrieve_workflow_patterns(self, query_text):
+        """Retrieve similar workflow patterns from the Workflow Pattern Store."""
+        if not self.workflow_retriever:
+            return ""
+        try:
+            docs = self.workflow_retriever.invoke(query_text[:500])
+            examples = []
+            for i, doc in enumerate(docs):
+                wf_json = doc.metadata.get("workflow", "[]")
+                original_query = doc.metadata.get("query", "")
+                examples.append(f"EXAMPLE {i+1} — Query: \"{original_query}\"\n{wf_json}")
+            print(f"Schematizer: Retrieved {len(docs)} workflow patterns.")
+            return "\n\n".join(examples)
+        except Exception as e:
+            print(f"Schematizer: Workflow Pattern retrieval failed: {e}")
+            return ""
+
     def structure_plan(self, planner_text):
         """Converts textual plan to JSON using schema and RAG context."""
 
@@ -68,6 +96,9 @@ class Agent2Schematizer:
                 print(f"Schematizer: Retrieved {len(docs)} context chunks.")
             except Exception as e:
                 print(f"Schematizer Retrieval failed: {e}")
+
+        # Retrieve similar workflow patterns as few-shot examples
+        workflow_examples = self._retrieve_workflow_patterns(planner_text)
 
         # Build algo index for the prompt
         algo_list_str = "\n".join(sorted(self.valid_algos)) if self.valid_algos else ""
@@ -91,30 +122,41 @@ OUTPUT FORMAT: JSON array of steps, each with:
 - "step_id": e.g. "step_01"
 - "algorithm": exact ALGORITHM ID from the COMPLETE ALGORITHM INDEX
 - "parameters": dict with ALL mandatory parameters. For Enum params, use the integer index.
-- "input_files": list of input paths from Available Data
-- "output_file": path in "outputs/"
-- "script_filename": e.g. "step_01_slope.py"
+- "input_files": list of input paths from Available Data or from previous step outputs
+- "output_file": path in "outputs/" — every step MUST have a non-null output_file
+- "script_filename": e.g. "step_01_extract_boundary.py" — descriptive name
 
+═══════════════════════════════════════════════════
+BANNED ALGORITHMS (NEVER USE THESE):
+═══════════════════════════════════════════════════
+- qgis:selectbyattribute — does NOT produce an output file. Use 'native:extractbyattribute' instead.
+- native:saveselectedfeatures — requires a pre-selected layer that doesn't exist in headless mode.
+- qgis:rastercalculator — does NOT work in headless mode. Use 'gdal:rastercalculator' instead.
+
+═══════════════════════════════════════════════════
 RULES:
-1. Use ONLY algorithm IDs that appear EXACTLY in the COMPLETE ALGORITHM INDEX. Do NOT invent IDs.
-2. Check INPUT DATA TYPE: raster algorithms need .tif, vector algorithms need .shp.
-3. Include ALL mandatory parameters with correct types. Enum = integer index.
-4. Output ONLY valid JSON. No markdown, no explanation.
-5. CRITICAL: NEVER use 'qgis:rastercalculator'. It does NOT work in headless/script mode. Use 'gdal:rastercalculator' instead.
-   - gdal:rastercalculator parameters: INPUT_A (raster path), BAND_A (int), INPUT_B, BAND_B, INPUT_C, BAND_C, FORMULA (e.g. "(A<10)*(B<5)"), OUTPUT (path).
-   - The FORMULA uses single letters A, B, C etc. that correspond to INPUT_A, INPUT_B, INPUT_C.
-   - Example: {{"INPUT_A": "outputs/dem.tif", "BAND_A": 1, "FORMULA": "A<10", "OUTPUT": "outputs/result.tif"}}
-6. For 'gdal:rasterize', you MUST include 'EXTENT', 'WIDTH', and 'HEIGHT'.
-   - 'EXTENT' is string: 'minx,maxx,miny,maxy [EPSG:4326]'.
-   - 'UNITS' should be 0 (Pixels).
-   - Use 'BURN' value (float) to set the output pixel value.
-7. UNIT-AWARE GEOPROCESSING: If a query specifies a distance in METERS or KM (e.g. '10km buffer'), but the input layer is in Degrees (EPSG:4326), you MUST:
-   - Inject a 'native:reprojectlayer' step to EPSG:3857 BEFORE the distance operation.
-   - Use EPSG:3857 (meters) for all subsequent spatial operations in that chain.
-   - Assume GADM (gadm41_IND_*) and OSM roads are in Degrees.
-8. MULTI-VALUE FILTERS: If the plan requires filtering by multiple attribute values (e.g. fclass = 'motorway' OR fclass = 'primary'), you MUST use 'native:extractbyexpression' with an EXPRESSION parameter (e.g. EXPRESSION: "\"fclass\" = 'motorway' OR \"fclass\" = 'primary'"). 
-   - DO NOT use 'native:extractbyattribute' for multi-value OR conditions — it only supports a single value match.
-   - 'native:extractbyexpression' parameters: INPUT (layer path), EXPRESSION (QGIS expression string), OUTPUT (output path).
+═══════════════════════════════════════════════════
+1. Use ONLY algorithm IDs from the COMPLETE ALGORITHM INDEX. Do NOT invent IDs.
+2. Every step MUST have a non-null "output_file" in "outputs/".
+3. To extract features by attribute, ALWAYS use 'native:extractbyattribute' (single value) or 'native:extractbyexpression' (multi-value OR).
+   - native:extractbyattribute params: INPUT, FIELD, OPERATOR (0=equals), VALUE, OUTPUT.
+4. For 'gdal:rastercalculator':
+   - Use parameter name 'FORMULA' (NEVER 'EXPRESSION').
+   - Syntax: Python math operators. '*' for AND, '+' for OR, '==' for equals.
+   - Example: FORMULA: "(A > 5.0) * (B > 4.5)"
+5. For 'gdal:cliprasterbymasklayer', ONLY use: INPUT, MASK, CROP_TO_CUTLINE (true), KEEP_RESOLUTION (true), OUTPUT. No other params.
+6. For 'gdal:polygonize': FIELD param is always ignored by GDAL. The output field is ALWAYS 'DN'.
+   - Any downstream filter on polygonized output MUST use FIELD='DN', OPERATOR=0, VALUE='1'.
+7. UNIT-AWARE: If distance in meters/km but input is EPSG:4326, inject 'native:reprojectlayer' to EPSG:3857 first.
+8. CRS CONSISTENCY: If a vector was reprojected to 3857 for buffering, reproject it BACK to 4326 before rasterizing against a 4326 DEM.
+9. MULTI-VALUE FILTERS: Use 'native:extractbyexpression' with EXPRESSION for OR conditions.
+10. Output ONLY valid JSON. No markdown, no explanation.
+11. FINAL CLIP: If the workflow involves polygonizing a raster, the LAST step MUST be 'native:clip' with INPUT=the filtered polygons and OVERLAY=the administrative boundary from step 01. This clips the blocky pixel-grid edges to the smooth administrative boundary.
+
+═══════════════════════════════════════════════════
+SIMILAR WORKFLOW EXAMPLES (retrieved dynamically — follow these patterns):
+═══════════════════════════════════════════════════
+{workflow_examples if workflow_examples else "No similar patterns found. Follow the rules strictly."}
 """
 
         import time

@@ -1,0 +1,101 @@
+[
+  {
+    "query": "Find regions in Rajasthan where Solar PVOUT is above 5.0 and GHI is above 4.5 simultaneously",
+    "category": "solar_potential",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"Rajasthan"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/Rajasthan_Boundary.shp","script_filename":"step_01_extract_boundary.py"},
+      {"step_id":"step_02","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/India_PVOUT.tif","MASK":"outputs/Rajasthan_Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/India_PVOUT.tif","outputs/Rajasthan_Boundary.shp"],"output_file":"outputs/PVOUT_clipped.tif","script_filename":"step_02_clip_pvout.py"},
+      {"step_id":"step_03","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/India_GHI.tif","MASK":"outputs/Rajasthan_Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/India_GHI.tif","outputs/Rajasthan_Boundary.shp"],"output_file":"outputs/GHI_clipped.tif","script_filename":"step_03_clip_ghi.py"},
+      {"step_id":"step_04","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/PVOUT_clipped.tif","BAND_A":1,"INPUT_B":"outputs/GHI_clipped.tif","BAND_B":1,"FORMULA":"(A > 5.0) * (B > 4.5)","OUTPUT":"outputs/SolarPotential_Boolean.tif"},"input_files":["outputs/PVOUT_clipped.tif","outputs/GHI_clipped.tif"],"output_file":"outputs/SolarPotential_Boolean.tif","script_filename":"step_04_raster_calc.py"},
+      {"step_id":"step_05","algorithm":"gdal:polygonize","parameters":{"INPUT":"outputs/SolarPotential_Boolean.tif","BAND":1,"FIELD":"DN"},"input_files":["outputs/SolarPotential_Boolean.tif"],"output_file":"outputs/SolarPotential_Polygons.shp","script_filename":"step_05_polygonize.py"},
+      {"step_id":"step_06","algorithm":"native:extractbyattribute","parameters":{"INPUT":"outputs/SolarPotential_Polygons.shp","FIELD":"DN","OPERATOR":0,"VALUE":"1"},"input_files":["outputs/SolarPotential_Polygons.shp"],"output_file":"outputs/SolarPotential_Filtered.shp","script_filename":"step_06_filter_suitable.py"},
+      {"step_id":"step_07","algorithm":"native:clip","parameters":{"INPUT":"outputs/SolarPotential_Filtered.shp","OVERLAY":"outputs/Rajasthan_Boundary.shp"},"input_files":["outputs/SolarPotential_Filtered.shp","outputs/Rajasthan_Boundary.shp"],"output_file":"outputs/SolarPotential_Final.shp","script_filename":"step_07_clip_to_boundary.py"}
+    ]
+  },
+  {
+    "query": "Find high solar energy potential areas in a state using DNI and GHI raster data",
+    "category": "solar_potential",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"<STATE_NAME>"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/State_Boundary.shp","script_filename":"step_01_extract_boundary.py"},
+      {"step_id":"step_02","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/India_DNI.tif","MASK":"outputs/State_Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/India_DNI.tif","outputs/State_Boundary.shp"],"output_file":"outputs/DNI_clipped.tif","script_filename":"step_02_clip_dni.py"},
+      {"step_id":"step_03","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/India_GHI.tif","MASK":"outputs/State_Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/India_GHI.tif","outputs/State_Boundary.shp"],"output_file":"outputs/GHI_clipped.tif","script_filename":"step_03_clip_ghi.py"},
+      {"step_id":"step_04","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/DNI_clipped.tif","BAND_A":1,"INPUT_B":"outputs/GHI_clipped.tif","BAND_B":1,"FORMULA":"(A > <THRESHOLD_A>) * (B > <THRESHOLD_B>)","OUTPUT":"outputs/HighSolar_Boolean.tif"},"input_files":["outputs/DNI_clipped.tif","outputs/GHI_clipped.tif"],"output_file":"outputs/HighSolar_Boolean.tif","script_filename":"step_04_raster_calc.py"},
+      {"step_id":"step_05","algorithm":"gdal:polygonize","parameters":{"INPUT":"outputs/HighSolar_Boolean.tif","BAND":1,"FIELD":"DN"},"input_files":["outputs/HighSolar_Boolean.tif"],"output_file":"outputs/HighSolar_Polygons.shp","script_filename":"step_05_polygonize.py"},
+      {"step_id":"step_06","algorithm":"native:extractbyattribute","parameters":{"INPUT":"outputs/HighSolar_Polygons.shp","FIELD":"DN","OPERATOR":0,"VALUE":"1"},"input_files":["outputs/HighSolar_Polygons.shp"],"output_file":"outputs/HighSolar_Filtered.shp","script_filename":"step_06_filter.py"},
+      {"step_id":"step_07","algorithm":"native:clip","parameters":{"INPUT":"outputs/HighSolar_Filtered.shp","OVERLAY":"outputs/State_Boundary.shp"},"input_files":["outputs/HighSolar_Filtered.shp","outputs/State_Boundary.shp"],"output_file":"outputs/HighSolar_Final.shp","script_filename":"step_07_clip_to_boundary.py"}
+    ]
+  },
+  {
+    "query": "Identify flood-prone areas in Ernakulam district in Kerala using low elevation and proximity to rivers",
+    "category": "flood_analysis",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_2.shp","FIELD":"NAME_2","OPERATOR":0,"VALUE":"Ernakulam"},"input_files":["data/gadm41_IND_2.shp"],"output_file":"outputs/District_Boundary.shp","script_filename":"step_01_extract_district.py"},
+      {"step_id":"step_02","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/kerala_dem.tif","MASK":"outputs/District_Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/kerala_dem.tif","outputs/District_Boundary.shp"],"output_file":"outputs/District_DEM.tif","script_filename":"step_02_clip_dem.py"},
+      {"step_id":"step_03","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/District_DEM.tif","BAND_A":1,"FORMULA":"A < 10","OUTPUT":"outputs/Low_Elevation.tif"},"input_files":["outputs/District_DEM.tif"],"output_file":"outputs/Low_Elevation.tif","script_filename":"step_03_low_elevation.py"},
+      {"step_id":"step_04","algorithm":"gdal:clipvectorbypolygon","parameters":{"INPUT":"data/HydroRIVERS_v10_as.shp","MASK":"outputs/District_Boundary.shp"},"input_files":["data/HydroRIVERS_v10_as.shp","outputs/District_Boundary.shp"],"output_file":"outputs/District_Rivers.shp","script_filename":"step_04_clip_rivers.py"},
+      {"step_id":"step_05","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/District_Rivers.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/District_Rivers.shp"],"output_file":"outputs/District_Rivers_3857.shp","script_filename":"step_05_reproject_rivers.py"},
+      {"step_id":"step_06","algorithm":"native:buffer","parameters":{"INPUT":"outputs/District_Rivers_3857.shp","DISTANCE":500,"SEGMENTS":5,"END_CAP_STYLE":0,"JOIN_STYLE":0,"DISSOLVE":true},"input_files":["outputs/District_Rivers_3857.shp"],"output_file":"outputs/River_Buffer_3857.shp","script_filename":"step_06_buffer_rivers.py"},
+      {"step_id":"step_07","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/River_Buffer_3857.shp","TARGET_CRS":"EPSG:4326"},"input_files":["outputs/River_Buffer_3857.shp"],"output_file":"outputs/River_Buffer_4326.shp","script_filename":"step_07_reproject_buffer_back.py"},
+      {"step_id":"step_08","algorithm":"gdal:rasterize","parameters":{"INPUT":"outputs/River_Buffer_4326.shp","BURN":1.0,"UNITS":0,"NODATA":0.0,"DATA_TYPE":0,"EXTENT":"outputs/District_DEM.tif","WIDTH":"outputs/District_DEM.tif","HEIGHT":"outputs/District_DEM.tif"},"input_files":["outputs/River_Buffer_4326.shp","outputs/District_DEM.tif"],"output_file":"outputs/River_Buffer_Raster.tif","script_filename":"step_08_rasterize_buffer.py"},
+      {"step_id":"step_09","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/Low_Elevation.tif","BAND_A":1,"INPUT_B":"outputs/River_Buffer_Raster.tif","BAND_B":1,"FORMULA":"(A==1)*(B==1)","OUTPUT":"outputs/Flood_Prone_Raster.tif"},"input_files":["outputs/Low_Elevation.tif","outputs/River_Buffer_Raster.tif"],"output_file":"outputs/Flood_Prone_Raster.tif","script_filename":"step_09_combine.py"},
+      {"step_id":"step_10","algorithm":"gdal:polygonize","parameters":{"INPUT":"outputs/Flood_Prone_Raster.tif","BAND":1,"FIELD":"DN"},"input_files":["outputs/Flood_Prone_Raster.tif"],"output_file":"outputs/Flood_Prone_Polygons.shp","script_filename":"step_10_polygonize.py"},
+      {"step_id":"step_11","algorithm":"native:extractbyattribute","parameters":{"INPUT":"outputs/Flood_Prone_Polygons.shp","FIELD":"DN","OPERATOR":0,"VALUE":"1"},"input_files":["outputs/Flood_Prone_Polygons.shp"],"output_file":"outputs/Flood_Prone_Filtered.shp","script_filename":"step_11_filter.py"},
+      {"step_id":"step_12","algorithm":"native:clip","parameters":{"INPUT":"outputs/Flood_Prone_Filtered.shp","OVERLAY":"outputs/District_Boundary.shp"},"input_files":["outputs/Flood_Prone_Filtered.shp","outputs/District_Boundary.shp"],"output_file":"outputs/Flood_Prone_Areas.shp","script_filename":"step_12_clip_to_boundary.py"}
+    ]
+  },
+  {
+    "query": "Find flood-prone low-lying areas near rivers in a state or district",
+    "category": "flood_analysis",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"<STATE_NAME>"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/Boundary.shp","script_filename":"step_01_extract_boundary.py"},
+      {"step_id":"step_02","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/kerala_dem.tif","MASK":"outputs/Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/kerala_dem.tif","outputs/Boundary.shp"],"output_file":"outputs/DEM_clipped.tif","script_filename":"step_02_clip_dem.py"},
+      {"step_id":"step_03","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/DEM_clipped.tif","BAND_A":1,"FORMULA":"A < <ELEVATION_THRESHOLD>","OUTPUT":"outputs/Low_Elevation.tif"},"input_files":["outputs/DEM_clipped.tif"],"output_file":"outputs/Low_Elevation.tif","script_filename":"step_03_low_elevation.py"},
+      {"step_id":"step_04","algorithm":"gdal:clipvectorbypolygon","parameters":{"INPUT":"data/HydroRIVERS_v10_as.shp","MASK":"outputs/Boundary.shp"},"input_files":["data/HydroRIVERS_v10_as.shp","outputs/Boundary.shp"],"output_file":"outputs/Rivers_clipped.shp","script_filename":"step_04_clip_rivers.py"},
+      {"step_id":"step_05","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/Rivers_clipped.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/Rivers_clipped.shp"],"output_file":"outputs/Rivers_3857.shp","script_filename":"step_05_reproject.py"},
+      {"step_id":"step_06","algorithm":"native:buffer","parameters":{"INPUT":"outputs/Rivers_3857.shp","DISTANCE":500,"SEGMENTS":5,"END_CAP_STYLE":0,"JOIN_STYLE":0,"DISSOLVE":true},"input_files":["outputs/Rivers_3857.shp"],"output_file":"outputs/River_Buffer_3857.shp","script_filename":"step_06_buffer.py"},
+      {"step_id":"step_07","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/River_Buffer_3857.shp","TARGET_CRS":"EPSG:4326"},"input_files":["outputs/River_Buffer_3857.shp"],"output_file":"outputs/River_Buffer_4326.shp","script_filename":"step_07_reproject_back.py"},
+      {"step_id":"step_08","algorithm":"gdal:rasterize","parameters":{"INPUT":"outputs/River_Buffer_4326.shp","BURN":1.0,"UNITS":0,"NODATA":0.0,"DATA_TYPE":0,"EXTENT":"outputs/DEM_clipped.tif","WIDTH":"outputs/DEM_clipped.tif","HEIGHT":"outputs/DEM_clipped.tif"},"input_files":["outputs/River_Buffer_4326.shp","outputs/DEM_clipped.tif"],"output_file":"outputs/River_Buffer_Raster.tif","script_filename":"step_08_rasterize.py"},
+      {"step_id":"step_09","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/Low_Elevation.tif","BAND_A":1,"INPUT_B":"outputs/River_Buffer_Raster.tif","BAND_B":1,"FORMULA":"(A==1)*(B==1)","OUTPUT":"outputs/Flood_Prone_Raster.tif"},"input_files":["outputs/Low_Elevation.tif","outputs/River_Buffer_Raster.tif"],"output_file":"outputs/Flood_Prone_Raster.tif","script_filename":"step_09_combine.py"},
+      {"step_id":"step_10","algorithm":"gdal:polygonize","parameters":{"INPUT":"outputs/Flood_Prone_Raster.tif","BAND":1,"FIELD":"DN"},"input_files":["outputs/Flood_Prone_Raster.tif"],"output_file":"outputs/Flood_Prone_Polygons.shp","script_filename":"step_10_polygonize.py"},
+      {"step_id":"step_11","algorithm":"native:extractbyattribute","parameters":{"INPUT":"outputs/Flood_Prone_Polygons.shp","FIELD":"DN","OPERATOR":0,"VALUE":"1"},"input_files":["outputs/Flood_Prone_Polygons.shp"],"output_file":"outputs/Flood_Prone_Filtered.shp","script_filename":"step_11_filter.py"},
+      {"step_id":"step_12","algorithm":"native:clip","parameters":{"INPUT":"outputs/Flood_Prone_Filtered.shp","OVERLAY":"outputs/Boundary.shp"},"input_files":["outputs/Flood_Prone_Filtered.shp","outputs/Boundary.shp"],"output_file":"outputs/Flood_Prone_Areas.shp","script_filename":"step_12_clip_to_boundary.py"}
+    ]
+  },
+  {
+    "query": "Identify regions in Kerala more than 10km away from any National Highway using South India OSM road network",
+    "category": "distance_analysis",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"Kerala"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/Kerala_Boundary.shp","script_filename":"step_01_extract_kerala.py"},
+      {"step_id":"step_02","algorithm":"native:extractbyexpression","parameters":{"INPUT":"data/southern-zone-260316-free.shp/gis_osm_roads_free_1.shp","EXPRESSION":"\"fclass\" = 'motorway' OR \"fclass\" = 'primary'"},"input_files":["data/southern-zone-260316-free.shp/gis_osm_roads_free_1.shp"],"output_file":"outputs/National_Highways.shp","script_filename":"step_02_extract_highways.py"},
+      {"step_id":"step_03","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/Kerala_Boundary.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/Kerala_Boundary.shp"],"output_file":"outputs/Kerala_3857.shp","script_filename":"step_03_reproject_kerala.py"},
+      {"step_id":"step_04","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/National_Highways.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/National_Highways.shp"],"output_file":"outputs/Highways_3857.shp","script_filename":"step_04_reproject_highways.py"},
+      {"step_id":"step_05","algorithm":"native:buffer","parameters":{"INPUT":"outputs/Highways_3857.shp","DISTANCE":10000,"SEGMENTS":25,"END_CAP_STYLE":0,"JOIN_STYLE":0,"DISSOLVE":true},"input_files":["outputs/Highways_3857.shp"],"output_file":"outputs/Highway_Buffer_10km.shp","script_filename":"step_05_buffer_highways.py"},
+      {"step_id":"step_06","algorithm":"native:difference","parameters":{"INPUT":"outputs/Kerala_3857.shp","OVERLAY":"outputs/Highway_Buffer_10km.shp"},"input_files":["outputs/Kerala_3857.shp","outputs/Highway_Buffer_10km.shp"],"output_file":"outputs/Regions_Far_From_NH.shp","script_filename":"step_06_difference.py"}
+    ]
+  },
+  {
+    "query": "Find areas far from roads or infrastructure using buffer and difference operations",
+    "category": "distance_analysis",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"<STATE_NAME>"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/Boundary.shp","script_filename":"step_01_extract_boundary.py"},
+      {"step_id":"step_02","algorithm":"native:extractbyexpression","parameters":{"INPUT":"data/southern-zone-260316-free.shp/gis_osm_roads_free_1.shp","EXPRESSION":"\"fclass\" = '<ROAD_TYPE>'"},"input_files":["data/southern-zone-260316-free.shp/gis_osm_roads_free_1.shp"],"output_file":"outputs/Roads_filtered.shp","script_filename":"step_02_filter_roads.py"},
+      {"step_id":"step_03","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/Boundary.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/Boundary.shp"],"output_file":"outputs/Boundary_3857.shp","script_filename":"step_03_reproject_boundary.py"},
+      {"step_id":"step_04","algorithm":"native:reprojectlayer","parameters":{"INPUT":"outputs/Roads_filtered.shp","TARGET_CRS":"EPSG:3857"},"input_files":["outputs/Roads_filtered.shp"],"output_file":"outputs/Roads_3857.shp","script_filename":"step_04_reproject_roads.py"},
+      {"step_id":"step_05","algorithm":"native:buffer","parameters":{"INPUT":"outputs/Roads_3857.shp","DISTANCE":"<DISTANCE_METERS>","SEGMENTS":25,"END_CAP_STYLE":0,"JOIN_STYLE":0,"DISSOLVE":true},"input_files":["outputs/Roads_3857.shp"],"output_file":"outputs/Road_Buffer.shp","script_filename":"step_05_buffer.py"},
+      {"step_id":"step_06","algorithm":"native:difference","parameters":{"INPUT":"outputs/Boundary_3857.shp","OVERLAY":"outputs/Road_Buffer.shp"},"input_files":["outputs/Boundary_3857.shp","outputs/Road_Buffer.shp"],"output_file":"outputs/Far_From_Roads.shp","script_filename":"step_06_difference.py"}
+    ]
+  },
+  {
+    "query": "Extract slope from DEM and identify steep terrain areas",
+    "category": "terrain_analysis",
+    "workflow": [
+      {"step_id":"step_01","algorithm":"native:extractbyattribute","parameters":{"INPUT":"data/gadm41_IND_1.shp","FIELD":"NAME_1","OPERATOR":0,"VALUE":"<STATE_NAME>"},"input_files":["data/gadm41_IND_1.shp"],"output_file":"outputs/Boundary.shp","script_filename":"step_01_extract_boundary.py"},
+      {"step_id":"step_02","algorithm":"gdal:cliprasterbymasklayer","parameters":{"INPUT":"data/kerala_dem.tif","MASK":"outputs/Boundary.shp","CROP_TO_CUTLINE":true,"KEEP_RESOLUTION":true},"input_files":["data/kerala_dem.tif","outputs/Boundary.shp"],"output_file":"outputs/DEM_clipped.tif","script_filename":"step_02_clip_dem.py"},
+      {"step_id":"step_03","algorithm":"native:slope","parameters":{"INPUT":"outputs/DEM_clipped.tif","Z_FACTOR":1.0},"input_files":["outputs/DEM_clipped.tif"],"output_file":"outputs/Slope.tif","script_filename":"step_03_slope.py"},
+      {"step_id":"step_04","algorithm":"gdal:rastercalculator","parameters":{"INPUT_A":"outputs/Slope.tif","BAND_A":1,"FORMULA":"A > 30","OUTPUT":"outputs/SteepTerrain_Boolean.tif"},"input_files":["outputs/Slope.tif"],"output_file":"outputs/SteepTerrain_Boolean.tif","script_filename":"step_04_steep_filter.py"},
+      {"step_id":"step_05","algorithm":"gdal:polygonize","parameters":{"INPUT":"outputs/SteepTerrain_Boolean.tif","BAND":1,"FIELD":"DN"},"input_files":["outputs/SteepTerrain_Boolean.tif"],"output_file":"outputs/SteepTerrain_Polygons.shp","script_filename":"step_05_polygonize.py"},
+      {"step_id":"step_06","algorithm":"native:extractbyattribute","parameters":{"INPUT":"outputs/SteepTerrain_Polygons.shp","FIELD":"DN","OPERATOR":0,"VALUE":"1"},"input_files":["outputs/SteepTerrain_Polygons.shp"],"output_file":"outputs/SteepTerrain_Filtered.shp","script_filename":"step_06_filter.py"},
+      {"step_id":"step_07","algorithm":"native:clip","parameters":{"INPUT":"outputs/SteepTerrain_Filtered.shp","OVERLAY":"outputs/Boundary.shp"},"input_files":["outputs/SteepTerrain_Filtered.shp","outputs/Boundary.shp"],"output_file":"outputs/SteepTerrain_Final.shp","script_filename":"step_07_clip_to_boundary.py"}
+    ]
+  }
+]

@@ -417,19 +417,47 @@ class Agent3Window:
             return
 
         # Build a minimal QGIS project file
+        # Put the FINAL output on top, boundary second, hide intermediates
+        final_file = files[-1]  # Last step = final output
+        boundary_file = files[0]  # First step = boundary extraction
+
+        # Separate: final, boundary, others
+        priority_files = [final_file, boundary_file]
+        other_files = [f for f in files[1:-1]]  # intermediates (hidden)
+
         qgs_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
         qgs_content += '<qgis projectname="GeoFlowAI Output" version="3.40.0">\n'
         qgs_content += '  <projectlayers>\n'
-        for i, fpath in enumerate(files):
+
+        layer_idx = 0
+        # Add priority layers (visible)
+        for fpath in priority_files:
             fname = os.path.splitext(os.path.basename(fpath))[0]
             ext = os.path.splitext(fpath)[1].lower()
+            ltype = "raster" if ext in (".tif", ".tiff") else "vector"
             provider = "gdal" if ext in (".tif", ".tiff") else "ogr"
-            qgs_content += f'    <maplayer type="{"raster" if provider == "gdal" else "vector"}" autoRefreshEnabled="0">\n'
-            qgs_content += f'      <id>layer_{i}</id>\n'
+            qgs_content += f'    <maplayer type="{ltype}" autoRefreshEnabled="0">\n'
+            qgs_content += f'      <id>layer_{layer_idx}</id>\n'
             qgs_content += f'      <datasource>{fpath}</datasource>\n'
             qgs_content += f'      <layername>{fname}</layername>\n'
             qgs_content += f'      <provider encoding="System">{provider}</provider>\n'
             qgs_content += '    </maplayer>\n'
+            layer_idx += 1
+
+        # Add intermediate layers (visible=false so they don't obscure final)
+        for fpath in other_files:
+            fname = os.path.splitext(os.path.basename(fpath))[0]
+            ext = os.path.splitext(fpath)[1].lower()
+            ltype = "raster" if ext in (".tif", ".tiff") else "vector"
+            provider = "gdal" if ext in (".tif", ".tiff") else "ogr"
+            qgs_content += f'    <maplayer type="{ltype}" autoRefreshEnabled="0" visible="0">\n'
+            qgs_content += f'      <id>layer_{layer_idx}</id>\n'
+            qgs_content += f'      <datasource>{fpath}</datasource>\n'
+            qgs_content += f'      <layername>{fname}</layername>\n'
+            qgs_content += f'      <provider encoding="System">{provider}</provider>\n'
+            qgs_content += '    </maplayer>\n'
+            layer_idx += 1
+
         qgs_content += '  </projectlayers>\n'
         qgs_content += '</qgis>\n'
 
